@@ -1,0 +1,14 @@
+{
+  "height": 500,
+  "width": 800,
+  "dependencies": {
+    "@react-three/drei": "^9.56.13",
+    "@react-three/fiber": "^8.10.4",
+    "lamina": "^1.1.23",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.149.0"
+  },
+  "externalDeps": [
+  ]
+}
