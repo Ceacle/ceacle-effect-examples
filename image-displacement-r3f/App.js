@@ -14,6 +14,8 @@ const RemapShaderMaterial = shaderMaterial(
     uIntensity: 0.5,
     uBaseMap: null,
     uDispMap: null,
+    uDirection: 0,
+    uReverse: 0,
   },
   `
     varying vec2 vUv;
@@ -29,11 +31,28 @@ const RemapShaderMaterial = shaderMaterial(
     uniform sampler2D uBaseMap;
     uniform float uIntensity;
     uniform sampler2D uDispMap;
+    uniform int uDirection;
+    uniform int uReverse;
 
     void main() {
       vec2 uv = vUv;
       vec4 dispMapVec = texture2D(uDispMap, uv);
-      vec4 displacedMap = texture2D(uBaseMap, vec2(uv.x, uv.y + uIntensity * (dispMapVec * uIntensity)));
+      float reverse = uReverse == 0 ? -1.0 : 1.0;
+      float intensity = uIntensity * reverse;
+      vec4 displacedMap = vec4(0.0);
+      int vertical = 0;
+      int horizontal = 1;
+      int diagonal = 2;
+
+      if (uDirection == vertical) {
+        displacedMap = texture2D(uBaseMap, vec2(uv.x, uv.y + intensity * dispMapVec.r));
+        
+      } else if (uDirection == horizontal) {
+        displacedMap = texture2D(uBaseMap, vec2(uv.x + intensity * dispMapVec.r, uv.y));
+
+      } else if (uDirection == diagonal) {
+        displacedMap = texture2D(uBaseMap, vec2(uv.x + intensity * dispMapVec.r, uv.y + intensity * dispMapVec.g));
+      }
 
       gl_FragColor = displacedMap;
     }
@@ -42,11 +61,16 @@ const RemapShaderMaterial = shaderMaterial(
 
 extend({ RemapShaderMaterial })
 
-/* 
+
+/**
  * App is inside a Canvas from "@react-three/fiber"
  */
 export default function App({
 }) {
+  /**
+   * Change the Canvas props
+   * https://docs.effect.ceacle.com/hooks/useCanvasProps
+   */
   const { setCanvasProps } = useCanvasProps()
 
   useEffect(() => {
@@ -70,31 +94,18 @@ function ImageDisplacement() {
   const { viewport, scene, camera } = useThree()
   const gl = useThree((state) => state.gl)
 
-  const { intensity, baseMap, displacementMap } = useControl({
-    /* Unique id */
-    id: 'displacement-controls',
-    intensity: {
-      label: 'Intensity',
-      min: 0,
-      max: 1,
-      step: .01,
-      value: .15,
-    },
-    baseMap: {
-      label: 'Image',
-      // Resize the viewport to the image size when the image is loaded
-      resizeViewport: true,
-      image: {
-        src: 'https://effect.ceacle.net/templates/image-displacement-r3f/base-3.png',
-      },
-    },
-    displacementMap: {
-      label: 'Displacement Image',
-      image: {
-        src: 'https://effect.ceacle.net/templates/image-displacement-r3f/artwork-2.jpg',
-      },
-    },
-  })
+  /**
+   * Use the useControl hook to receive the user's input 
+   * from the control panel you created
+   * https://docs.effect.ceacle.com/hooks/useControl
+   */
+  const {
+    intensity,
+    baseMap,
+    displacementMap,
+    reverse,
+    direction,
+  } = useControl('displacement')
 
   function loadMap (key, src) {
     loader.load(src, (loadedTexture) => {
@@ -109,30 +120,47 @@ function ImageDisplacement() {
 
   useEffect(() => {
     if (!baseMap?.src || !materialRef.current) return
-    loadMap('uBaseMap', baseMap?.src)
+    loadMap('uBaseMap', baseMap.src)
   }, [baseMap])
 
   useEffect(() => {
     if (!displacementMap?.src || !materialRef.current) return
-    loadMap('uDispMap', displacementMap?.src)
+    loadMap('uDispMap', displacementMap.src)
   }, [displacementMap])
 
   useEffect(() => {
-    gl.render(scene, camera) // Rendering on demand
-  }, [intensity])
+    if (!materialRef.current) return
+    materialRef.current.uReverse = reverse ? 1 : 0
+  }, [reverse])
+
+  useEffect(() => {
+    if (!materialRef.current) return
+
+    if (direction === 'Vertical') {
+      materialRef.current.uDirection = 0
+
+    } else if (direction === 'Horizontal') {
+      materialRef.current.uDirection = 1
+      
+    } else if (direction === 'Diagonal') {
+      materialRef.current.uDirection = 2
+    }
+  }, [direction])
 
   return (
     <mesh>
       <planeGeometry
-        args={[viewport?.width, viewport?.height]}
+        args={[viewport?.width || 0, viewport?.height || 0]}
         attach="geometry"
       />
       <remapShaderMaterial
         ref={materialRef}
         attach='material'
-        uIntensity={intensity}
+        uIntensity={intensity / 1000}
         uBaseMap={null}
         uDispMap={null}
+        uDirection={direction}
+        uReverse={reverse ? 1 : 0}
         transparent
         opacity={1}
       />
@@ -143,17 +171,7 @@ function ImageDisplacement() {
 function BackgroundColor() {
   const { scene, camera } = useThree()
   const gl = useThree((state) => state.gl)
-
-  const { backgroundColor: bc } = useControl({
-    /* Unique id */
-    id: 'background-controls',
-    backgroundColor: {
-      label: 'Background Color',
-      color: {
-        hexa: '#00000000',
-      },
-    },
-  })
+  const { backgroundColor: bc } = useControl('background')
 
   const clearColor = bc?.rgba
     ? `rgb(${bc.rgba.r}, ${bc.rgba.g}, ${bc.rgba.b})`
@@ -163,7 +181,7 @@ function BackgroundColor() {
   useEffect(() => {
     gl.setClearColor(clearColor, alpha)
     gl.render(scene, camera) // Rendering on demand
-  }, [bc.hexa])
+  }, [bc?.hexa])
 
   return null
 }

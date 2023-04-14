@@ -9,19 +9,32 @@ import { useThree, useFrame } from '@react-three/fiber'
 import { LayerMaterial, Displace, Gradient, Fresnel, Normal } from 'lamina'
 
 import {
-  setDefaultCamera,
   useCanvasProps,
   useControl,
   useDefaultCamera,
   useSettings,
 } from './effect-control'
 
-/* 
+/**
  * App is inside a Canvas from "@react-three/fiber"
  */
 export default function App() {
   const cameraRef = useRef()
+  /**
+   * Change the default camera the export will use
+   * https://docs.effect.ceacle.com/hooks/useDefaultCamera
+   */
+  const { setDefaultCamera } = useDefaultCamera()
+  /**
+   * Change the Canvas props
+   * https://docs.effect.ceacle.com/hooks/useCanvasProps
+   */
   const { setCanvasProps } = useCanvasProps()
+  /**
+   * Use the useSettings hook to save and restore settings
+   * without exposing them to the user.
+   * https://docs.effect.ceacle.com/hooks/useSettings
+   */
   const cameraSettings = useSettings('camera', {
     orbitTarget: { x: 0, y: 0, z: 0 },
     position: { x: 0, y: 0, z: 50 },
@@ -61,7 +74,6 @@ export default function App() {
           makeDefault
           position={[position.x, position.y, position.z]}
           rotation={[rotation._x, rotation._y, rotation._z]}
-          fov={75}
         />
         <OrbitControls
           ref={handleOrbitRef}
@@ -78,157 +90,42 @@ function Blob() {
   const displaceRef = useRef()
   const gl = useThree((state) => state.gl)
   const { scene } = useThree()
-  const camera = useDefaultCamera()
+  const { camera } = useDefaultCamera()
   const { setCanvasProps } = useCanvasProps()
 
+  /**
+   * Use the useControl hook to receive the user's input 
+   * from the control panel you created
+   * https://docs.effect.ceacle.com/hooks/useControl
+   */
   const {
     blobRadius,
     blobDetail,
-  } = useControl({
-    /* Unique id */
-    id: 'blob',
-    label: 'Blob',
-    blobRadius: {
-      label: 'Radius',
-      min: .1,
-      max: 10,
-      step: .1,
-      value: 2.0,
-    },
-    blobDetail: {
-      label: 'Detail',
-      warnings: {
-        intensive: {
-          valueGt: 48,
-        },
-      },
-      min: 0,
-      max: 64,
-      step: 1,
-      value: 16,
-    },
-  })
+  } = useControl('blob')
 
   const {
     color1,
     color2,
     gradientIntensity,
+    gradient_blend,
     normalOpacity,
-  } = useControl({
-    /* Unique id */
-    id: 'colors',
-    label: 'Colors',
-    /*
-     * Color control
-     * Accepts and returns any of the values below
-     * hex: '#ffffff',
-     * rgba: { r: 255, g: 255, b: 255, a: 1 },
-     * hsla: { h: 360, s: 100, l: 100, a: 1 },
-     */
-    color1: {
-      label: 'Color 1',
-      color: {
-        hex: '#27F6FF',
-      },
-    },
-    color2: {
-      label: 'Color 2',
-      color: {
-        hex: '#FFB822',
-      },
-    },
-    gradientIntensity: {
-      label: 'Gradient Intensity',
-      min: 0,
-      max: 5,
-      step: .01,
-      value: 1.2,
-    },
-    normalOpacity: {
-      label: 'Overlay Opacity',
-      min: 0,
-      max: 3,
-      step: .01,
-      value: .37,
-    },
-  })
+    overlay_blend,
+  } = useControl('colors')
 
   const {
     color3,
     fresnelBias,
     fresnelOpacity,
     fresnelIntensity,
-  } = useControl({
-    /* Unique id */
-    id: 'contour',
-    label: 'Contour',
-    color3: {
-      label: 'Color',
-      color: {
-        hex: '#30FF00',
-      },
-    },
-    fresnelBias: {
-      label: 'Bias',
-      min: -1,
-      max: 1,
-      step: .1,
-      value: .5,
-    },
-    fresnelIntensity: {
-      label: 'Intensity',
-      min: 0,
-      max: 100,
-      step: 1,
-      value: 35,
-    },
-    fresnelOpacity: {
-      label: 'Opacity',
-      min: 0,
-      max: 3,
-      step: .01,
-      value: .12,
-    },
-  })
+    fresnel_blend,
+  } = useControl('fresnel')
 
   const {
     displaceOffset,
     displaceScale,
     displaceSpeed,
     displaceStrength,
-  } = useControl({
-    /* Unique id */
-    id: 'displace',
-    label: 'Displace',
-    displaceOffset: {
-      label: 'Offset',
-      min: 0,
-      max: 100,
-      step: 0.1,
-      value: 1,
-    },
-    displaceScale: {
-      label: 'Scale',
-      min: 0.1,
-      max: 10,
-      step: 0.1,
-      value: 0.6,
-    },
-    displaceStrength: {
-      label: 'Strength',
-      min: 1,
-      max: 50,
-      step: 1,
-      value: 38,
-    },
-    displaceSpeed: {
-      label: 'Speed',
-      min: -3,
-      max: 3,
-      step: .01,
-      value: .08,
-    },
-  })
+  } = useControl('displace')
 
   useFrame((state) => {
     const { clock } = state
@@ -277,6 +174,9 @@ function Blob() {
   return (
     <mesh
       position={[0, 0, 0]}
+      // Prevent the blob to be culled when it's outside the camera frustum
+      // It can make the blob invisible when it's partially visible
+      frustumCulled={false}
     >
       <icosahedronGeometry args={[blobRadius, blobDetail]} />
 
@@ -286,8 +186,8 @@ function Blob() {
           type={'perlin'}
         />
         <Gradient
-          colorA={color1.hex}
-          colorB={color2.hex}
+          colorA={color1?.hex}
+          colorB={color2?.hex}
           contrast={110}
           start={420}
           end={-420}
@@ -295,25 +195,26 @@ function Blob() {
           axes={'y'}
         />
         <Fresnel
-          color={color3.hex}
+          color={color3?.hex}
           bias={fresnelBias}
           intensity={fresnelIntensity}
           alpha={fresnelOpacity}
+          mode={fresnel_blend}
         />
         <Normal
           alpha={normalOpacity}
           direction={[1, 1, -1]}
-          mode={'overlay'}
+          mode={overlay_blend}
         />
         <Gradient
-          colorA={color1.hex}
-          colorB={color2.hex}
+          colorA={color1?.hex}
+          colorB={color2?.hex}
           contrast={110}
           start={420}
           end={-420}
           alpha={gradientIntensity}
-          axes={'y'}
-          mode={'overlay'}
+          axes={'x'}
+          mode={gradient_blend}
         />
       </LayerMaterial>
     </mesh>
@@ -323,18 +224,8 @@ function Blob() {
 function BackgroundColor() {
   const gl = useThree((state) => state.gl)
   const { scene } = useThree()
-  const camera = useDefaultCamera()
-
-  const { backgroundColor: bc } = useControl({
-    /* Unique id */
-    id: '0-background-controls',
-    backgroundColor: {
-      label: 'Background Color',
-      color: {
-        hexa: '#00000000',
-      },
-    },
-  })
+  const { camera } = useDefaultCamera()
+  const { backgroundColor: bc } = useControl('background')
 
   const clearColor = bc?.rgba
     ? `rgb(${bc.rgba.r}, ${bc.rgba.g}, ${bc.rgba.b})`
@@ -343,8 +234,9 @@ function BackgroundColor() {
 
   useEffect(() => {
     gl.setClearColor(clearColor, alpha)
-    gl.render(scene, camera) // Rendering on demand
-  }, [bc.hexa])
+    // Rendering on demand
+    gl.render(scene, camera)
+  }, [bc?.hexa])
 
   return null
 }
